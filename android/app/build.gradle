@@ -1,0 +1,281 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+/**
+ * Release signing inputs, resolved in ONE place.
+ *
+ * Gradle property first, then environment, so CI can supply them without a
+ * file and a developer can use ~/.gradle/gradle.properties. Nothing is read
+ * from the repository: a keystore or a password in source control is as bad as
+ * an API key in the APK.
+ *
+ *   ./gradlew assembleRelease -PrequireSigning \
+ *     -PreleaseKeystore=/secure/path/upload.jks \
+ *     -PreleaseKeystorePassword=... -PreleaseKeyAlias=upload \
+ *     -PreleaseKeyPassword=...
+ */
+ext.releaseSigning = [
+    keystore     : project.findProperty('releaseKeystore') ?: System.getenv('RELEASE_KEYSTORE'),
+    storePassword: project.findProperty('releaseKeystorePassword') ?: System.getenv('RELEASE_KEYSTORE_PASSWORD'),
+    keyAlias     : project.findProperty('releaseKeyAlias') ?: System.getenv('RELEASE_KEY_ALIAS'),
+    keyPassword  : project.findProperty('releaseKeyPassword') ?: System.getenv('RELEASE_KEY_PASSWORD'),
+]
+
+/** True when the build was asked to produce something distributable. */
+ext.requireSigning = project.hasProperty('requireSigning') ||
+        (System.getenv('RELEASE_REQUIRE_SIGNING') ?: '').toLowerCase() in ['1', 'true', 'yes']
+
+android {
+    namespace 'com.whispercppdemo'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.whispercppdemo"
+        minSdk 26
+        targetSdk 36
+        versionCode 2
+        versionName "1.1"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary true
+        }
+
+        // Backend base URL, supplied at BUILD time:
+        //   ./gradlew assembleRelease -PbackendBaseUrl=https://api.example.com
+        //
+        // Empty by default, which is what keeps the shipped APK on the local
+        // engine: EngineSelector only chooses CLOUD when a base URL exists.
+        //
+        // This is a URL, never a secret. No provider API key appears anywhere
+        // in the Android project -- the backend holds them, and a key inside an
+        // APK is extractable regardless of how it is stored.
+        resValue "string", "backend_base_url",
+                (project.findProperty('backendBaseUrl') ?: '')
+
+    }
+
+    // android.util.Log is a stub in JVM unit tests; without this it throws
+    // "not mocked" instead of no-opping.
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    // Release signing credentials come from gradle properties or the
+    // environment -- never from the repository. A keystore or its password in
+    // source control is as bad as an API key in the APK.
+    //
+    //   ./gradlew assembleRelease     //       -PreleaseKeystore=/secure/path/upload.jks     //       -PreleaseKeystorePassword=... -PreleaseKeyAlias=upload     //       -PreleaseKeyPassword=...
+    signingConfigs {
+        releaseConfig {
+            def ks = releaseSigning.keystore
+            if (ks) {
+                storeFile file(ks)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        // Opt-in, for on-device verification only: `-PdebugWithReleaseKey`
+        // signs the DEBUG build with the release key, so it installs over the
+        // installed release as an update (same package, same certificate) and
+        // the app's data -- jobs, recordings, owner claim -- survives. Without
+        // the flag the debug build is signed exactly as before.
+        debug {
+            if (project.hasProperty('debugWithReleaseKey') && releaseSigning.keystore) {
+                signingConfig signingConfigs.releaseConfig
+            }
+        }
+
+        release {
+            // Previously `signingConfigs.debug`, which produced a release APK
+            // signed with the publicly known debug key: unpublishable, and
+            // indistinguishable from a real build by looking at the output.
+            //
+            // With no keystore configured the release is left UNSIGNED rather
+            // than silently debug-signed. An unsigned APK cannot be mistaken
+            // for shippable; a debug-signed one can.
+            signingConfig = releaseSigning.keystore ? signingConfigs.releaseConfig : null
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.0'
+    }
+}
+
+dependencies {
+    implementation project(':lib')
+    implementation 'androidx.activity:activity-compose:1.7.2'
+    implementation 'androidx.compose.material:material-icons-core:1.5.0'
+    // The UI uses icons outside -core:
+    // upload_file, history, block, audio_file, refresh, content_copy,
+    // ios_share, lock, info.
+    implementation 'androidx.compose.material:material-icons-extended:1.5.0'
+    implementation 'androidx.navigation:navigation-compose:2.7.7'
+    implementation 'androidx.compose.material3:material3:1.1.1'
+    implementation "androidx.compose.ui:ui:1.5.0"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.5.0"
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1'
+    implementation "com.google.accompanist:accompanist-permissions:0.28.0"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.2'
+    // Irela Pro subscriptions. The Java artifact (not billing-ktx), wrapped in
+    // coroutines in billing/PlayBillingGateway.kt: no Kotlin-metadata coupling
+    // to this project's Kotlin version. Purchases are verified by the backend.
+    implementation 'com.android.billingclient:billing:8.3.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    // org.json ships in android.jar as a STUB, and unitTests.returnDefaultValues
+    // makes every stub call return a default. Without the real implementation on
+    // the test classpath, any test of JSON response parsing passes vacuously --
+    // optString returns "" and the assertion still succeeds against "". This
+    // puts the real parser in front of the stub for unit tests only.
+    testImplementation 'org.json:json:20240303'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation "androidx.compose.ui:ui-test-junit4:1.5.0"
+    debugImplementation "androidx.compose.ui:ui-tooling:1.5.0"
+    debugImplementation "androidx.compose.ui:ui-test-manifest:1.5.0"
+}
+// ---------------------------------------------------------------------------
+// Release signing guards.
+//
+// Three separate failures are possible here and they need different answers:
+//
+//  1. Nothing configured at all. This is the normal development case, and it
+//     produces app-release-unsigned.apk with a loud warning. An unsigned APK
+//     cannot be mistaken for shippable; a debug-signed one can, which is what
+//     this build used to produce.
+//  2. Configured but INCOMPLETE -- a keystore path with no password or alias.
+//     This is always a mistake, never a deliberate state, so it fails the
+//     build immediately with the missing names rather than at the signing step
+//     with a stack trace.
+//  3. Asked for a distributable build (-PrequireSigning) with nothing
+//     configured. Fails, because the whole point of the flag is to make an
+//     unsigned artefact impossible to produce by accident in CI.
+// ---------------------------------------------------------------------------
+tasks.register('verifyReleaseSigning') {
+    doLast {
+        def s = project.ext.releaseSigning
+        if (!s.keystore) {
+            def message = "Release signing is not configured.\n" +
+                "  Supply -PreleaseKeystore=<path> (or RELEASE_KEYSTORE) together with\n" +
+                "  -PreleaseKeystorePassword, -PreleaseKeyAlias and -PreleaseKeyPassword.\n" +
+                "  Never commit the keystore or its passwords."
+            if (project.ext.requireSigning) {
+                throw new GradleException(message +
+                    "\n  -PrequireSigning was given, so an unsigned APK will NOT be produced.")
+            }
+            logger.warn("\nWARNING: " + message +
+                "\n  Producing app-release-UNSIGNED.apk. It cannot be installed or published.\n")
+            return
+        }
+
+        if (!file(s.keystore).exists()) {
+            throw new GradleException("Release keystore not found: ${s.keystore}")
+        }
+        def missing = []
+        if (!s.storePassword) missing << 'releaseKeystorePassword / RELEASE_KEYSTORE_PASSWORD'
+        if (!s.keyAlias) missing << 'releaseKeyAlias / RELEASE_KEY_ALIAS'
+        if (!s.keyPassword) missing << 'releaseKeyPassword / RELEASE_KEY_PASSWORD'
+        if (missing) {
+            throw new GradleException(
+                "Release signing is configured but incomplete. Missing: ${missing.join(', ')}")
+        }
+        logger.lifecycle("Release signing: keystore present, alias '${s.keyAlias}'.")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The release build MUST carry a production backend URL.
+//
+// EngineSelector picks CLOUD only when a base URL is configured, so a release
+// built without -PbackendBaseUrl silently falls back to the on-device engine --
+// whose model is not shipped. That build looks fine and never transcribes
+// anything. It is the likeliest release mistake, so it is made impossible
+// rather than documented.
+//
+// Only `release` is gated. Debug builds keep working with no URL,
+// which is how local/LOCAL-engine development runs.
+//
+// The URL is configuration, never a secret: it is printed in full on failure.
+// ---------------------------------------------------------------------------
+ext.RELEASE_URL_PATTERN = ~/^https:\/\/[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+(:[0-9]{1,5})?(\/[A-Za-z0-9._~%\/-]*)?$/
+ext.RELEASE_URL_REJECTED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2', '0.0.0.0',
+                                  'example.com', 'api.example.com', 'test', 'invalid']
+
+tasks.register('verifyReleaseBackendUrl') {
+    doLast {
+        def raw = project.findProperty('backendBaseUrl')
+        def url = raw == null ? '' : raw.toString().trim()
+        def how = '\n  Supply it on the command line, e.g.\n' +
+            '    ./gradlew :app:assembleRelease -PbackendBaseUrl=https://api.example.com\n' +
+            '  It is a URL, not a secret: no provider key belongs in the app.'
+
+        if (!url) {
+            throw new GradleException(
+                'Release build refused: no backend URL.\n' +
+                '  -PbackendBaseUrl was not supplied, so this release would fall back to the\n' +
+                '  on-device engine, whose model is not shipped -- it would never transcribe.' + how)
+        }
+        if (url.toLowerCase().startsWith('http://')) {
+            throw new GradleException(
+                "Release build refused: backendBaseUrl must use HTTPS, got '${url}'.\n" +
+                '  The request carries the user audio; cleartext is also blocked by the platform.' + how)
+        }
+        if (!(url ==~ project.ext.RELEASE_URL_PATTERN)) {
+            throw new GradleException(
+                "Release build refused: backendBaseUrl '${url}' is not a valid https:// URL.\n" +
+                '  Expected https://<host>[:port][/path], with no query, fragment or spaces.' + how)
+        }
+        def host = url.replaceFirst(/^https:\/\//, '').replaceFirst(/[:\/].*$/, '').toLowerCase()
+        if (host in project.ext.RELEASE_URL_REJECTED_HOSTS || host.endsWith('.local')) {
+            throw new GradleException(
+                "Release build refused: backendBaseUrl '${url}' points at a development host.\n" +
+                '  A published build must point at the production backend.' + how)
+        }
+        logger.lifecycle("Release backend URL: ${url}")
+    }
+}
+
+// The debug key is publicly known -- every Android install has it. A release
+// signed with it is not merely unpublishable, it is a build that LOOKS signed.
+// This makes that state impossible rather than discouraged.
+tasks.register('verifyReleaseNotDebugSigned') {
+    doLast {
+        def release = android.buildTypes.findByName('release')
+        def debugConfig = android.signingConfigs.findByName('debug')
+        if (release?.signingConfig != null && release.signingConfig == debugConfig) {
+            throw new GradleException(
+                "The release build type is signed with the DEBUG key. " +
+                "Release must use signingConfigs.releaseConfig, or no signing at all.")
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.matching { it.name == 'assembleRelease' }.configureEach {
+        dependsOn 'verifyReleaseNotDebugSigned', 'verifyReleaseSigning'
+    }
+    // Both ways of packaging a release (APK and AAB) require the URL.
+    tasks.matching { it.name in ['assembleRelease', 'bundleRelease'] }.configureEach {
+        dependsOn 'verifyReleaseBackendUrl'
+    }
+}

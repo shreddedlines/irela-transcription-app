@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Cloud transcription: audio is sent to our backend proxy, which holds
+         the provider credentials. The app never contacts a provider directly
+         and never carries a provider API key. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Recording continues after the user switches apps only through a
+         visible foreground service of these types (Android 14+ requires the
+         matching permissions). Both are normal permissions; the microphone
+         itself still needs the RECORD_AUDIO runtime grant, and playback
+         capture still needs Android's per-session consent dialog. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".ApexApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.WhisperCppDemo"
+        tools:targetApi="31">
+        <!--
+            singleTask is load-bearing, not cosmetic: under the default launch
+            mode every share would start a second MainActivity, hence a second
+            ViewModel, hence a second resident WhisperContext (~400 MB each).
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.WhisperCppDemo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Share sheet: WhatsApp/Telegram voice notes and audio files. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+
+            <!-- Open with. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" android:mimeType="audio/*" />
+                <data android:scheme="file" android:mimeType="audio/*" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="" />
+        </activity>
+
+        <!--
+            Exports exactly one directory (cacheDir/share) so a shared .txt
+            can be handed to another app by URI. grantUriPermissions means the
+            receiver gets read access to the single file named in the intent
+            and nothing else; the provider is not exported, so no app can
+            enumerate it. No new runtime permission is involved.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.shareprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
+
+        <!--
+            Owns long-running transcription so it survives the user going back
+            to WhatsApp. dataSync is the applicable type: local processing of
+            user-provided content, no media playback involved.
+        -->
+        <service
+            android:name=".transcribe.TranscriptionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+            Holds foreground status while audio is recorded, with a visible
+            notification, so capture continues when the user leaves the app.
+            Started only from the visible app (Android forbids starting it from
+            the background). mediaProjection is used only after the user
+            accepts Android's own playback-capture consent dialog.
+        -->
+        <service
+            android:name=".recorder.RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaProjection" />
+    </application>
+
+</manifest>

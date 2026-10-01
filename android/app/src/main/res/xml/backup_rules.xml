@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auto Backup rules for Android 11 and lower.
+
+    The backend installation credential is never backed up; see
+    data_extraction_rules.xml for why.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="backend_installation.xml" />
+</full-backup-content>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ backup and device-transfer rules.
+
+    The backend installation credential is excluded from BOTH. A token restored
+    onto another phone would let two devices share one installation's identity
+    and quota; a restored app should register as a new installation instead.
+    Keep the file name in sync with SharedPrefsInstallationCredentialStore.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="backend_installation.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="backend_installation.xml" />
+    </device-transfer>
+</data-extraction-rules>

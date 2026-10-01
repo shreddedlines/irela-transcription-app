@@ -1,0 +1,121 @@
+# =============================================================================
+# Irela: Android app (Gradle/Kotlin/NDK) + FastAPI backend (Python)
+# =============================================================================
+
+# --- Secrets and credentials (never commit) -----------------------------------
+.env
+.env.*
+!.env.example
+*.env
+backend.env
+# Android release signing
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
+release-signing.properties
+# SSH / TLS keys and certificates
+*.pem
+*.key
+*.crt
+*.csr
+id_rsa*
+id_ed25519*
+# Google Cloud / Play service-account keys
+*service-account*.json
+*-sa.json
+play-sa*.json
+google-services.json
+
+# --- Third-party sources fetched by scripts/fetch-whisper-cpp.* ----------------
+/third_party/whisper.cpp/
+
+# --- Model weights and audio (large; not part of the source) -------------------
+*.bin
+*.gguf
+*.ggml
+*.onnx
+*.safetensors
+*.pt
+*.pth
+*.tflite
+/models/
+**/assets/models/
+**/assets/samples/
+*.wav
+*.ogg
+*.opus
+*.mp3
+*.m4a
+*.aac
+*.flac
+
+# --- Android / Gradle ----------------------------------------------------------
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.idsig
+output-metadata.json
+mapping.txt
+native-debug-symbols*.zip
+# Gradle distributions (the wrapper downloads them)
+gradle-*-bin.zip
+gradle-*-all.zip
+# Keep the wrapper jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# --- Python / backend ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+.venv-*/
+venv/
+env/
+# Local runtime state: metering DB holds installation token hashes and usage rows
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+# Scratch dir created by backend/smoke_local.sh
+backend/_fixture/
+# Packaged deployment bundles
+*.tgz
+*.tar.gz
+
+# --- IDEs -----------------------------------------------------------------------
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# --- OS -------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Logs and temporary files -------------------------------------------------------
+*.log
+*.tmp
+*.bak
+*.orig
+*.pre-*
+hs_err_pid*
+replay_pid*

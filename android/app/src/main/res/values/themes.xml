@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Irela's icon background: the launch window (and the Android 12+
+         splash, see values-v31) shows this instead of the Light theme's white
+         until the app's own dark UI draws. -->
+    <color name="launch_background">#1D1F27</color>
+
+    <style name="Theme.WhisperCppDemo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/launch_background</item>
+    </style>
+</resources>

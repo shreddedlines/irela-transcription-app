@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The ONLY directory this app will ever expose through the provider: the
+    share staging folder inside our own cache. Nothing else under cacheDir,
+    and nothing under filesDir (where transcripts live), is reachable.
+-->
+<paths>
+    <cache-path name="shared_transcripts" path="share/" />
+</paths>
