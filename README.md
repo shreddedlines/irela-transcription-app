@@ -69,7 +69,7 @@ transcription application."); the invented name "Irela" came out as "iral".</sub
 
 **Try the Android app using the latest APK release:**
 
-> ### [⬇️ Download Irela for Android](https://github.com/<your-username>/<your-repo>/releases/latest)
+> ### [⬇️ Download Irela for Android](https://github.com/shreddedlines/irela-transcription-app/releases/latest)
 
 1. Download `Irela-v1.0.apk` from the release's **Assets**.
 2. Open it on your phone and allow installing from that source when Android asks.
